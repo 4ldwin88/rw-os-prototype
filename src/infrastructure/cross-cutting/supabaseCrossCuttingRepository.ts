@@ -1,9 +1,11 @@
 import { supabase } from '../auth/supabaseClient';
 
-export type CrossCuttingAction={id:string;title:string;dueDate?:string;status:'open'|'in_progress'|'blocked'|'done'|'cancelled';ownerUserId?:string;updatedAt:string};
-export type CrossCuttingRiskIssue={id:string;kind:string;title:string;severity?:string;status:'open'|'in_progress'|'blocked'|'done'|'cancelled';ownerUserId?:string;updatedAt:string};
+export type WorkStatus='open'|'in_progress'|'blocked'|'done'|'cancelled';
+export type KnowledgeState='known'|'unknown'|'unverified'|'not_applicable';
+export type CrossCuttingAction={id:string;title:string;dueDate?:string;status:WorkStatus;ownerUserId?:string;updatedAt:string};
+export type CrossCuttingRiskIssue={id:string;kind:string;title:string;severity?:string;status:WorkStatus;ownerUserId?:string;updatedAt:string};
 export type CrossCuttingDecision={id:string;decisionType:string;outcome:string;rationale?:string;authorityBasis?:string;actorUserId:string;createdAt:string};
-export type CrossCuttingEvidence={id:string;title:string;sourceUrl?:string;sourceSystem:string;provenanceNote?:string;knowledgeState:'known'|'unknown'|'unverified'|'not_applicable';createdAt:string};
+export type CrossCuttingEvidence={id:string;title:string;sourceUrl?:string;sourceSystem:string;provenanceNote?:string;knowledgeState:KnowledgeState;createdAt:string};
 export type ProjectStateAttention={level:'clear'|'attention'|'blocked';reasons:string[];overdueActions:number;blockedActions:number;openMaterialRisks:number;unverifiedEvidence:number};
 export type ProjectStateCrossCutting={actions:CrossCuttingAction[];risksIssues:CrossCuttingRiskIssue[];decisions:CrossCuttingDecision[];evidence:CrossCuttingEvidence[];attention:ProjectStateAttention};
 
@@ -37,3 +39,12 @@ export async function listProjectStateCrossCutting(projectStateId:string):Promis
  const evidence=(evidenceResult.data??[]).map(v=>({id:v.id,title:v.title,sourceUrl:v.source_url??undefined,sourceSystem:v.source_system,provenanceNote:v.provenance_note??undefined,knowledgeState:v.knowledge_state,createdAt:v.created_at})) as CrossCuttingEvidence[];
  const base={actions,risksIssues,decisions,evidence};return {...base,attention:deriveProjectStateAttention(base)};
 }
+
+async function rpc(name:string,args:Record<string,unknown>,fallback:string){const {error}=await supabase.rpc(name,args);fail(error,fallback)}
+export async function createProjectStateAction(projectStateId:string,title:string,dueDate?:string){await rpc('create_project_state_action_command',{project_state_input:projectStateId,title_input:title,due_date_input:dueDate||null},'Action could not be created.')}
+export async function updateProjectStateAction(action:CrossCuttingAction){await rpc('update_project_state_action_command',{action_input:action.id,title_input:action.title,due_date_input:action.dueDate||null,status_input:action.status},'Action could not be updated.')}
+export async function createProjectStateRiskIssue(projectStateId:string,kind:string,title:string,severity?:string){await rpc('create_project_state_risk_issue_command',{project_state_input:projectStateId,kind_input:kind,title_input:title,severity_input:severity||null},'Risk or issue could not be created.')}
+export async function updateProjectStateRiskIssue(item:CrossCuttingRiskIssue){await rpc('update_project_state_risk_issue_command',{risk_issue_input:item.id,kind_input:item.kind,title_input:item.title,severity_input:item.severity||null,status_input:item.status},'Risk or issue could not be updated.')}
+export async function recordProjectStateDecision(projectStateId:string,decisionType:string,outcome:string,rationale?:string,authorityBasis?:string){await rpc('record_project_state_decision_command',{project_state_input:projectStateId,decision_type_input:decisionType,outcome_input:outcome,rationale_input:rationale||null,authority_basis_input:authorityBasis||null},'Decision could not be recorded.')}
+export async function createProjectStateEvidence(projectStateId:string,title:string,sourceSystem:string,sourceUrl:string,provenanceNote:string,knowledgeState:KnowledgeState){await rpc('create_project_state_evidence_command',{project_state_input:projectStateId,title_input:title,source_system_input:sourceSystem||'google_drive',source_url_input:sourceUrl||null,provenance_note_input:provenanceNote||null,knowledge_state_input:knowledgeState},'Evidence could not be created.')}
+export async function updateProjectStateEvidence(item:CrossCuttingEvidence){await rpc('update_project_state_evidence_command',{evidence_input:item.id,title_input:item.title,source_system_input:item.sourceSystem,source_url_input:item.sourceUrl||null,provenance_note_input:item.provenanceNote||null,knowledge_state_input:item.knowledgeState},'Evidence could not be updated.')}
